@@ -1,0 +1,190 @@
+Program.Sub.ScreenSU.Start
+Gui.F_Main..create
+Gui.F_Main..caption("ADP Entry")
+Gui.F_Main..size(1740,2790)
+Gui.F_Main..position(0,0)
+Gui.F_Main..event(UnLoad,unload)
+Gui.F_Main..alwaysontop(True)
+Gui.F_Main..fontname("arial")
+Gui.F_Main..forecolor(0)
+Gui.F_Main..fontstyle(False,False,False,False,False)
+Gui.F_Main..BackColor(-2147483633)
+Gui.F_Main..maxbutton(False)
+Gui.F_Main..mousepointer(0)
+Gui.F_Main..sizeable(False)
+Gui.F_Main..MinX(0)
+Gui.F_Main..MinY(0)
+Gui.F_Main.txt1.create(textbox,"",True,1215,315,0,200,400,True,0,"arial",8,-2147483643,1)
+Gui.F_Main.txt1.text("")
+Gui.F_Main.txt1.maxLength(3)
+Gui.F_Main.lbl1.create(label,"ADP Company",True,1095,255,1,195,195,True,0,"Arial",7,-2147483633,0)
+Gui.F_Main.txt2.create(textbox,"",True,1215,315,0,200,1200,True,0,"arial",8,-2147483643,1)
+Gui.F_Main.txt2.text("")
+Gui.F_Main.txt2.maxLength(8)
+Gui.F_Main.lbl2.create(label,"Batch Number",True,1095,255,1,195,1005,True,0,"Arial",7,-2147483633,0)
+Gui.F_Main.cmdExport.create(button)
+Gui.F_Main.cmdExport.caption("Export")
+Gui.F_Main.cmdExport.size(975,375)
+Gui.F_Main.cmdExport.position(300,1700)
+Gui.F_Main.cmdExport.fontname("arial")
+Gui.F_Main.cmdExport.event(Click,Process)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Variable.Global.DSN.Declare(String)
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+Gui.F_main..Show
+Program.Sub.Main.End
+
+Program.Sub.Process.Start
+Variable.local.date.declare(String)
+Variable.Local.time.Declare(String)
+V.Local.shold.Declare(String)
+V.Local.sCompany.Declare(String)
+Variable.Local.id.Declare(String)
+Variable.local.sSQL.declare(String)
+Variable.local.hold.declare(String)
+'Loop
+V.Local.iCnt.Declare(Long)
+V.Local.sEmployee.Declare(String)
+V.Local.sDept.Declare(String)
+V.Local.fHours.Declare(Float)
+V.Local.sType.Declare(String)
+V.Local.sEC.Declare(String)
+V.Local.iCntEC.Declare(Long)
+V.Local.iLen.Declare(Long)
+'Export
+V.Local.sFileExport.Declare(String)
+
+V.Local.shold.Set(V.Screen.F_Main!txt1.Text)
+F.Intrinsic.Control.If(V.Local.shold.trim,=,"")
+	F.Intrinsic.UI.Msgbox("Must enter an ADP Company Code")
+	F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.endif
+V.Local.shold.Set(V.Screen.F_Main!txt2.text)
+F.Intrinsic.Control.If(V.Local.shold.trim,=,"")
+	F.Intrinsic.UI.Msgbox("Must enter a Batch Number")
+	F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.endif
+'Open Company Connection
+F.Intrinsic.String.Build("GLOBAL_{0}",V.Caller.CompanyCode,V.Local.sCompany)
+Function.Odbc.Connection!Conx.Openconnection(V.Local.sCompany,"Master","master")
+
+Function.Intrinsic.String.Mid(Variable.Passed.888888,15,2,Variable.Local.id)
+Function.Intrinsic.String.Left(Variable.Passed.888888,8,Variable.Local.date)
+Function.Intrinsic.String.Mid(Variable.Passed.888888,9,6,Variable.Local.time)
+
+'Sets hold
+Function.Intrinsic.string.Left(Variable.Screen.F_Main!txt1.Text,3,Variable.Local.hold)
+'Checks hold adds _ if less than 3 chars
+Function.Intrinsic.Control.If(Variable.Local.hold.Length,<,3)
+	Function.intrinsic.string.concat(Variable.Local.hold,"_",Variable.Local.hold)
+Function.Intrinsic.Control.EndIf
+'Get Data
+F.Intrinsic.String.Build("SELECT DISTINCT '{0}' AS 'Co Code', '{1}' AS 'Batch ID', null AS 'File #', p.NAME AS 'Name',NULL AS 'Home Department', p.DEPT, p.EMPLOYEE FROM PYRL_LABOR_XFER p WHERE p.RUN_CYMD = '{2}' AND RUN_TIME = '{3}' ORDER BY EMPLOYEE;",V.Screen.F_Main!txt1.Text,V.Screen.F_Main!txt2.Text,Variable.Local.date,Variable.Local.time,Variable.local.sSQL)
+F.Data.DataTable.CreateFromSQL("dtPayroll","Conx",V.Local.sSQL)
+F.Data.DataTable.AddColumn("dtPayroll","Regular","Float")
+F.Data.DataTable.AddColumn("dtPayroll","Overtime","Float")
+F.Data.DataTable.Create("dtEarnCodes")
+F.Data.DataTable.AddColumn("dtEarnCodes","Type","String")
+F.Data.DataTable.AddColumn("dtEarnCodes","EC","String")
+F.Data.DataTable.AddRow("dtEarnCodes","TYPE","RT","EC","01")
+F.Data.DataTable.AddRow("dtEarnCodes","TYPE","OT","EC","02")
+'Check for additional earn codes
+
+F.Intrinsic.Control.For(V.Local.iCnt,3,10,1)
+	F.Intrinsic.Control.If(V.Local.iCnt,<,10)
+		F.Intrinsic.String.Build("0{0}",V.Local.iCnt,V.Local.sEC)
+	F.Intrinsic.Control.EndIf
+	F.Intrinsic.String.Build("SELECT COUNT(*) FROM PYRL_LABOR_XFER WHERE RUN_CYMD = '{0}' AND RUN_TIME = '{1}' AND EC = '{2}';",Variable.Local.date,Variable.Local.time,V.Local.sEC,Variable.local.sSQL)
+	F.ODBC.Connection!Conx.ExecuteAndReturn(V.Local.sSQL,V.Local.iLen)
+	F.Intrinsic.Control.If(V.Local.iLen,<>,0)	
+		F.Intrinsic.String.Build("SELECT DESCR FROM V_PAYROLL_PAY_CATS WHERE PAY_CATEGORY = '{0}' AND YEAR = '{1}';",V.Local.sEC,V.Local.date.Left4,V.Local.sSQL)
+		F.ODBC.Connection!Conx.ExecuteAndReturn(V.Local.sSQL,V.Local.sType)
+		F.Intrinsic.String.Trim(V.Local.sType,V.Local.sType)
+		'Add column and add to EarnCodes Table
+		F.Intrinsic.Control.If(V.Local.sEC,=,"03")
+		F.Data.DataTable.AddColumn("dtPayroll","EarnCode03","String")
+		F.Intrinsic.Control.ElseIf(V.Local.sEC,=,"04")
+		F.Data.DataTable.AddColumn("dtPayroll","EarnCode04","String")
+		F.Intrinsic.Control.EndIf
+		F.Data.DataTable.AddColumn("dtPayroll",V.Local.sType,"Float")
+		F.Data.DataTable.AddRow("dtEarnCodes","TYPE",V.Local.sType,"EC",V.Local.sEC)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Next(V.Local.iCnt)
+'Clear Variables
+V.Local.iCnt.Set(0)
+V.Local.iLen.Set(0)
+V.Local.sEC.Set("")
+V.Local.sType.Set("")
+V.Local.sSQL.Set("")
+'Loop over employees
+F.Intrinsic.Control.For(V.Local.iCnt,0,V.DataTable.dtPayroll.RowCount--,1)
+	V.Local.sEmployee.Set(V.DataTable.dtPayroll(V.Local.iCnt).EMPLOYEE!FieldValString)
+	'loop over earn codes
+	F.Intrinsic.Control.For(V.Local.iCntEC,0,V.DataTable.dtEarnCodes.RowCount--,1)
+		V.Local.sType.Set(V.DataTable.dtEarnCodes(V.Local.iCntEC).Type!FieldValString)
+		V.Local.sEC.Set(V.DataTable.dtEarnCodes(V.Local.iCntEC).EC!FieldValString)
+		F.Intrinsic.Control.If(V.Local.iCntEC,<,2)
+			F.Intrinsic.String.Build("SELECT SUM(CONVERT(p.HOURS,SQL_DECIMAL)) FROM PYRL_LABOR_XFER p WHERE p.RUN_CYMD = '{0}' AND RUN_TIME = '{1}' AND (p.TYPE='{2}' OR p.EC='{3}') AND p.EMPLOYEE = '{4}';",Variable.Local.date,Variable.Local.time,V.Local.sTYPE,V.Local.sEC,V.Local.sEmployee,Variable.local.sSQL)
+			
+			F.Intrinsic.Control.If(V.Local.iCntEC,=,0)
+				V.Local.sType.Set("Regular")
+			F.Intrinsic.Control.Else
+				V.Local.sType.Set("Overtime")
+			F.Intrinsic.Control.EndIf
+		
+		F.Intrinsic.Control.Else
+			F.Intrinsic.String.Build("SELECT SUM(CONVERT(p.HOURS,SQL_DECIMAL)) FROM PYRL_LABOR_XFER p WHERE p.RUN_CYMD = '{0}' AND RUN_TIME = '{1}' AND p.EC='{2}' AND p.EMPLOYEE = '{3}';",Variable.Local.date,Variable.Local.time,V.Local.sEC,V.Local.sEmployee,Variable.local.sSQL)
+		F.Intrinsic.Control.EndIf
+		'Get Hours
+		F.ODBC.Connection!Conx.ExecuteAndReturn(V.Local.sSQL,V.Local.fHours)
+		'Add hours to payroll table
+		F.Intrinsic.Control.If(V.Local.fHours,>,0)
+			F.Intrinsic.Control.If(V.Local.iCntEC,=,2)
+				F.Data.DataTable.SetValue("dtPayroll",V.Local.iCnt,V.Local.sType,V.Local.fHours,"EarnCode03","P")
+			F.Intrinsic.Control.Elseif(V.Local.iCntEC,=,3)
+				F.Data.DataTable.SetValue("dtPayroll",V.Local.iCnt,V.Local.sType,V.Local.fHours,"EarnCode04","4")
+			F.Intrinsic.Control.Else
+				F.Data.DataTable.SetValue("dtPayroll",V.Local.iCnt,V.Local.sType,V.Local.fHours)
+			F.Intrinsic.Control.EndIf
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.Next(V.Local.iCntEC)
+	'Adjust Values (Employee and Dept)
+	F.Intrinsic.String.Build("1{0}",V.Local.sEmployee,V.Local.sEmployee)
+	V.Local.sDept.Set(V.DataTable.dtPayroll(V.Local.iCnt).DEPT!FieldValTrim)
+	F.Intrinsic.String.Len(V.Local.sDept,V.Local.iLen)
+	F.Intrinsic.Control.Do
+		F.Intrinsic.Control.If(V.Local.iLen,=,6)
+			F.Intrinsic.Control.ExitDo
+		F.Intrinsic.Control.EndIf
+		F.Intrinsic.String.Build("0{0}",V.Local.sDept,V.Local.sDept)
+		F.Intrinsic.String.Len(V.Local.sDept,V.Local.iLen)
+	F.Intrinsic.Control.Loop
+	F.Data.DataTable.SetValue("dtPayroll",V.Local.iCnt,"Home Department",V.Local.sDept,"File #",V.Local.sEmployee)
+F.Intrinsic.Control.Next(V.Local.iCnt)
+'Clean Up
+F.Data.DataTable.RemoveColumn("dtPayroll","DEPT")
+F.Data.DataTable.RemoveColumn("dtPayroll","EMPLOYEE")
+'Export to CSV
+Function.Intrinsic.String.Build("{0}\EPI{1}{2}-NEW.csv",Variable.Caller.FilesDir,Variable.Local.hold,V.Local.id,V.Local.sFileExport)
+F.Data.DataTable.SaveToCSV("dtPayroll",V.Local.sFileExport,True)
+F.Intrinsic.Task.ShellExec(0,"",V.Local.sFileExport,"","",1)
+'End
+F.Data.DataTable.Close("dtEarnCodes")
+F.Data.DataTable.Close("dtPayroll")
+Function.Odbc.Connection!Conx.Close
+Function.Intrinsic.Control.End
+
+Program.Sub.Process.End
+
+Program.Sub.unload.Start
+Function.Intrinsic.Control.End
+
+Program.Sub.unload.End
+
+Program.Sub.Comments.Start
+${$0$}$$}$$}$12:00:00 AM$}$False
+Program.Sub.Comments.End
